@@ -268,9 +268,57 @@ class global_discriminator_512(nn.Module):
 		x=self.main(x)
 		return x.view(-1,1).squeeze(1)
 
-# disc=global_discriminator_512()
+class global_discriminator_256(nn.Module):
+	def __init__(self):
+		super(global_discriminator_256,self).__init__()
+
+		self.hidden1=32
+		self.hidden2=32
+		self.hidden3=32
+		self.hidden4=32
+		self.hidden5=32
+		self.hidden6=32
+		self.hidden7=32
+		self.hidden8=32
+		self.kernel_size=5
+		self.elu=nn.ELU()
+
+		self.conv1 = nn.Conv2d(in_channels=3, out_channels=self.hidden1,
+                               kernel_size=self.kernel_size,
+                               stride=2,padding=1)
+		self.conv1_bn=nn.BatchNorm2d(self.hidden1)
+		self.conv2 = nn.Conv2d(in_channels=self.hidden1, out_channels=self.hidden2,
+                               kernel_size=self.kernel_size,
+                               stride=2,padding=1)
+		self.conv2_bn=nn.BatchNorm2d(self.hidden2)
+		self.conv3 = nn.Conv2d(in_channels=self.hidden2, out_channels=self.hidden3,
+                               kernel_size=self.kernel_size,
+                               stride=2,padding=1)
+		self.conv3_bn=nn.BatchNorm2d(self.hidden3)
+		self.conv4 = nn.Conv2d(in_channels=self.hidden3, out_channels=self.hidden4,
+                               kernel_size=self.kernel_size,
+                               stride=2,padding=1)
+		self.conv4_bn=nn.BatchNorm2d(self.hidden4)
+		self.conv5 = nn.Conv2d(in_channels=self.hidden4, out_channels=self.hidden5,
+                               kernel_size=self.kernel_size,
+                               stride=2,padding=1)
+		self.conv5_bn=nn.BatchNorm2d(self.hidden5)
+		self.conv6 = nn.Conv2d(in_channels=self.hidden5, out_channels=self.hidden6,
+                               kernel_size=self.kernel_size,
+                               stride=2,padding=1)
+		self.conv6_bn=nn.BatchNorm2d(self.hidden6)
+		self.main=nn.Sequential(nn.Linear(288,10),nn.Tanh(),nn.Linear(10,1),nn.Sigmoid())
+	def forward(self,x):
+		x=self.elu(self.conv2_bn(self.conv2(self.elu(self.conv1_bn(self.conv1(x))))))
+		x=self.elu(self.conv4_bn(self.conv4(self.elu(self.conv3_bn(self.conv3(x))))))
+		x=self.elu(self.conv6_bn(self.conv6(self.elu(self.conv5_bn(self.conv5(x))))))
+		x=x.view(x.shape[0],-1)
+		x=self.main(x)
+		return x.view(-1,1).squeeze(1)
+
+disc=global_discriminator_256()
 # print([name for name,params in disc.named_parameters()])
 # print(list(disc.parameters())[0])
-# x=Variable(torch.FloatTensor(1,4,512,512).zero_())
-# mask=Variable(torch.FloatTensor(1,3,512,512).zero_())
-# disc(mask)
+x=Variable(torch.FloatTensor(1,4,256,256).zero_())
+mask=Variable(torch.FloatTensor(1,3,256,256).zero_())
+disc(mask)

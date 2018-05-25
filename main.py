@@ -27,7 +27,11 @@ parser.add_argument('--e','--evaluate', dest='evaluation_mode', action='store_tr
 
 def network_factory(image_size,pretraining_mode,finetuning_mode):
 	l2loss=nn.MSELoss()
-	if(image_size==512 and pretraining_mode):
+	if(image_size==256 and pretraining_mode):
+		from car_network_pretraining import image_completion_network as ic, global_discriminator_256 as gd
+		def loss_fun(output_fake,mask,new_chip,gen):
+			return l2loss(output_fake,new_chip)
+	elif(image_size==512 and pretraining_mode):
 		from car_network_pretraining import image_completion_network as ic, global_discriminator_512 as gd
 		def loss_fun(output_fake,mask,new_chip,gen):
 			return l2loss(output_fake,new_chip)
@@ -36,6 +40,14 @@ def network_factory(image_size,pretraining_mode,finetuning_mode):
 		def loss_fun(output_fake,mask,new_chip,gen):
 			return l2loss(output_fake,new_chip)
 
+	elif(image_size==256 and not pretraining_mode and finetuning_mode):
+		from car_network import image_completion_network as ic, global_discriminator_256 as gd
+		def loss_fun(output_fake,mask,new_chip,gen):
+			FM_fake_input=torch.cat((mask,output_fake),dim=1)
+			features_fake=gen.FE2(FM_fake_input)
+			features_real=gen.FE2(new_chip)
+			FM_loss=l2loss(features_fake,features_real.detach())
+			return FM_loss
 	elif(image_size==512 and not pretraining_mode and finetuning_mode):
 		from car_network import image_completion_network as ic, global_discriminator_512 as gd
 		def loss_fun(output_fake,mask,new_chip,gen):
@@ -44,7 +56,6 @@ def network_factory(image_size,pretraining_mode,finetuning_mode):
 			features_real=gen.FE2(new_chip)
 			FM_loss=l2loss(features_fake,features_real.detach())
 			return FM_loss	
-
 	elif(image_size==1024 and not pretraining_mode and finetuning_mode):
 		from car_network import image_completion_network as ic, global_discriminator_1024 as gd
 		def loss_fun(output_fake,mask,new_chip,gen):
