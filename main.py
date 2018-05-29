@@ -27,6 +27,7 @@ parser.add_argument('--e','--evaluate', dest='evaluation_mode', action='store_tr
 						help='Indicate if you want inference mode')
 parser.add_argument('--FE', dest='feature_extractor', help='Indicate which Imagenet pretrained network you want to use as Feature_Extractor')
 parser.add_argument('--RC', dest='random_cropping', action='store_true', help='Indicate if you are using random cropping as DA')
+parser.add_argument('--v', dest='vulcan', action='store_true', help='Use this if you are using vulcan')
 
 def Feature_Extractor(feature_extractor):
 	fe = models.vgg16(pretrained=True)
@@ -115,10 +116,20 @@ def main():
 	print(gen)
 	print(disc)
 
+	if(opt.vulcan):
+		project_path='/fs/vulcan-scratch/koutilya/projects/deep_copy_paste/'
+		data_path='/vulcan/scratch/koutilya/NYC3dcars/'
+	else:
+		project_path='/scratch0/projects/deep_copy_paste/'
+		data_path='/scratch0/datasets/NYC3dcars/'
+
 	dataset_class=dataset_factory(opt.pretraining_mode)
-	train_dataset=dataset_class(training=1,size=image_size,DA=opt.random_cropping)
+	train_dataset=dataset_class(root_dir=data_path, training=1, size=image_size, DA=opt.random_cropping)
 	train_dataloader=DataLoader(train_dataset,batch_size=batchsize,shuffle=False)
-	val_dataset=dataset_class(size=image_size/2)
+	if(opt.random_cropping):
+		val_dataset=dataset_class(root_dir=data_path, size=image_size/2)
+	else:
+		val_dataset=dataset_class(root_dir=data_path, size=image_size)
 	val_dataloader=DataLoader(val_dataset,batch_size=batchsize,shuffle=False)
 
 	optim_g=optim.Adam(gen.parameters(),lr=0.0001,betas=(0.5,0.999))
@@ -127,13 +138,13 @@ def main():
 	criterion=nn.BCELoss()
 
 	display_step=10
-	
+
 	if(opt.pretraining_mode):
-		saved_model='/scratch0/projects/deep_copy_paste/model_pretrained'
+		saved_model=os.path.join(project_path,'model_pretrained')
 		# gen_saved_model='/scratch0/projects/deep_copy_paste/gen_model_pretrained'
 		# disc_saved_model='/scratch0/projects/deep_copy_paste/disc_model_pretrained'
 	else:
-		saved_model='/scratch0/projects/deep_copy_paste/model'
+		saved_model=os.path.join(project_path,'model')
 		# gen_saved_model='/scratch0/projects/deep_copy_paste/gen_model'
 		# disc_saved_model='/scratch0/projects/deep_copy_paste/disc_model'
 
@@ -145,7 +156,7 @@ def main():
 		optim_d.load_state_dict(model_state['optimizer_d'])
 		start_epoch=model_state['epoch']
 
-	elif(os.path.isfile('/scratch0/projects/deep_copy_paste/model_pretrained') and opt.finetuning_mode and not opt.use_pretrained):
+	elif(os.path.isfile(os.path.join(project_path,'model_pretrained')) and opt.finetuning_mode and not opt.use_pretrained):
 		## Need to change this
 		gen_state = torch.load(gen_saved_model)
 		gen.load_state_dict(gen_state['state_dict'])
@@ -165,7 +176,7 @@ def main():
 			run_training(train_dataloader, val_dataloader, model, criterion, loss_fun, optim_g, optim_d, epochs, display_step, saved_model)
 	else:
 		epoch=0
-		validate(val_dataloader, model, epoch, cuda_use, '/scratch0/projects/deep_copy_paste/evaluation_mode_inpainter/')
+		validate(val_dataloader, model, epoch, cuda_use, os.path.join(project_path,'evaluation_mode_inpainter/'))
 
 def run_pretraining(train_loader, val_loader, model, criterion, loss_fun, optim_g, optim_d, epochs, display_step, saved_model):
 	epochs_ic,epochs_disc,epochs_total = epochs['ic'], epochs['disc'], epochs['total']
@@ -218,7 +229,7 @@ def run_training(train_loader, val_loader, model, criterion, loss_fun, optim_g, 
 	        }, saved_model)
 	return 
 
-def validate(val_loader, model, epoch, cuda_use, folder='/scratch0/projects/deep_copy_paste/validation_inpainter/',):
+def validate(val_loader, model, epoch, cuda_use, folder=os.path.join(project_path,'validation_inpainter/')):
 	if(not os.path.exists(folder)):
 		os.system('mkdir -p '+os.path.join(folder,'gt'))
 		os.system('mkdir -p '+os.path.join(folder,'output'))
