@@ -29,10 +29,10 @@ parser.add_argument('--FE', dest='feature_extractor', help='Indicate which Image
 parser.add_argument('--RC', dest='random_cropping', action='store_true', help='Indicate if you are using random cropping as DA')
 
 def Feature_Extractor(feature_extractor):
-	fe = models.vgg16(pretrained=True).features
+	fe = models.vgg16(pretrained=True)
 	if(feature_extractor == 'VGG16'):
 		fe = models.vgg16(pretrained=True)
-
+		fe = nn.Sequential(*list(fe.features.children())[:-1])
 	for param in fe.parameters():
 		param.requires_grad = False
 	return fe
@@ -52,7 +52,9 @@ def network_factory(image_size,pretraining_mode,finetuning_mode, random_cropping
 			from car_network_pretraining import image_completion_network as ic, global_discriminator_1024 as gd
 		
 		def loss_fun(output_fake,mask,new_chip,gen):
-			return l2loss(feature_extractor(output_fake),feature_extractor(new_chip))
+			fe_fake=feature_extractor.features(output_fake)
+			fe_gt=feature_extractor.features(new_chip)
+			return l2loss(fe_fake,fe_gt)
 
 	elif(not pretraining_mode and finetuning_mode):
 		if(image_size==256):
@@ -103,6 +105,7 @@ def main():
 	fe=Feature_Extractor(opt.feature_extractor)
 	if(cuda_use):
 		fe.cuda()
+	print(fe)
 	inpainter,global_discriminator,loss_fun=network_factory(image_size, opt.pretraining_mode, opt.finetuning_mode, opt.random_cropping, fe)
 	gen=inpainter()
 	disc=global_discriminator()
