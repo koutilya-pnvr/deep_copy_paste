@@ -101,6 +101,8 @@ def main():
 	image_size=int(opt.size)
 
 	fe=Feature_Extractor(opt.feature_extractor)
+	if(cuda_use):
+		fe.cuda()
 	inpainter,global_discriminator,loss_fun=network_factory(image_size, opt.pretraining_mode, opt.finetuning_mode, opt.random_cropping, fe)
 	gen=inpainter()
 	disc=global_discriminator()
