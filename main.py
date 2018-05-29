@@ -185,7 +185,7 @@ def run_pretraining(train_loader, val_loader, model, criterion, loss_fun, optim_
 		train_ic(train_loader, model, loss_fun, optim_g, epoch, cuda_use)
 
 		if(epoch%display_step==0):
-			validate(val_loader, model, epoch, cuda_use)
+			validate(val_loader, model, epoch, cuda_use, os.path.join(project_path,'evaluation_mode_inpainter/'))
 			# save checkpoint
 			save_checkpoint({
 			    'epoch': epoch + 1,
@@ -202,7 +202,7 @@ def run_pretraining(train_loader, val_loader, model, criterion, loss_fun, optim_
 		train_total(train_loader, model, criterion, loss_fun, optim_g, optim_d, epoch, cuda_use)
 
 		if(epoch%display_step==0):
-			validate(val_loader, model, epochs_ic+epochs_disc+epoch, cuda_use)
+			validate(val_loader, model, epochs_ic+epochs_disc+epoch, cuda_use, os.path.join(project_path,'evaluation_mode_inpainter/'))
 			# save checkpoint
 			save_checkpoint({
 			    'epoch': epoch + 1,
@@ -229,7 +229,7 @@ def run_training(train_loader, val_loader, model, criterion, loss_fun, optim_g, 
 	        }, saved_model)
 	return 
 
-def validate(val_loader, model, epoch, cuda_use, folder=os.path.join(project_path,'validation_inpainter/')):
+def validate(val_loader, model, epoch, cuda_use, folder='/scratch0/projects/deep_copy_paste/validation_inpainter/'):
 	if(not os.path.exists(folder)):
 		os.system('mkdir -p '+os.path.join(folder,'gt'))
 		os.system('mkdir -p '+os.path.join(folder,'output'))
