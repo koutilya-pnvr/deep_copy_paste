@@ -13,6 +13,7 @@ import scipy.misc
 import os.path
 import argparse
 import time
+import torchvision.models as models
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--use_pretrained', type=int, required=True, help='1 | 0')
@@ -24,40 +25,43 @@ parser.add_argument('--ft','--finetune', dest='finetuning_mode', action='store_t
 						help='Indicate if you are finetuning the model on guide images')
 parser.add_argument('--e','--evaluate', dest='evaluation_mode', action='store_true', 
 						help='Indicate if you want inference mode')
+parser.add_argument('--FE', dest='feature_extractor', help='Indicate which Imagenet pretrained network you want to use as Feature_Extractor')
+parser.add_argument('--RC', dest='random_cropping', action='store_true', help='Indicate if you are using random cropping as DA')
 
-def network_factory(image_size,pretraining_mode,finetuning_mode):
-	l2loss=nn.MSELoss()
-	if(image_size==256 and pretraining_mode):
-		from car_network_pretraining import image_completion_network as ic, global_discriminator_256 as gd
-		def loss_fun(output_fake,mask,new_chip,gen):
-			return l2loss(output_fake,new_chip)
-	elif(image_size==512 and pretraining_mode):
-		from car_network_pretraining import image_completion_network as ic, global_discriminator_512 as gd
-		def loss_fun(output_fake,mask,new_chip,gen):
-			return l2loss(output_fake,new_chip)
-	elif(image_size==1024 and pretraining_mode):
-		from car_network_pretraining import image_completion_network as ic, global_discriminator_1024 as gd
-		def loss_fun(output_fake,mask,new_chip,gen):
-			return l2loss(output_fake,new_chip)
+def Feature_Extractor(feature_extractor):
+	fe = models.vgg16(pretrained=True).features
+	if(feature_extractor == 'VGG16'):
+		fe = models.vgg16(pretrained=True)
 
-	elif(image_size==256 and not pretraining_mode and finetuning_mode):
-		from car_network import image_completion_network as ic, global_discriminator_256 as gd
+	for param in fe.parameters():
+		param.requires_grad = False
+	return fe
+
+
+def network_factory(image_size,pretraining_mode,finetuning_mode, random_cropping, feature_extractor):
+	l2loss=nn.L1Loss()
+	if(pretraining_mode):
+		if(image_size==256):
+			from car_network_pretraining import image_completion_network as ic, global_discriminator_256 as gd
+		elif(image_size==512):
+			if(random_cropping):
+				from car_network_pretraining import image_completion_network as ic, global_discriminator_256 as gd
+			else:
+				from car_network_pretraining import image_completion_network as ic, global_discriminator_512 as gd
+		elif(image_size==1024):
+			from car_network_pretraining import image_completion_network as ic, global_discriminator_1024 as gd
+		
 		def loss_fun(output_fake,mask,new_chip,gen):
-			FM_fake_input=torch.cat((mask,output_fake),dim=1)
-			features_fake=gen.FE2(FM_fake_input)
-			features_real=gen.FE2(new_chip)
-			FM_loss=l2loss(features_fake,features_real.detach())
-			return FM_loss
-	elif(image_size==512 and not pretraining_mode and finetuning_mode):
-		from car_network import image_completion_network as ic, global_discriminator_512 as gd
-		def loss_fun(output_fake,mask,new_chip,gen):
-			FM_fake_input=torch.cat((mask,output_fake),dim=1)
-			features_fake=gen.FE2(FM_fake_input)
-			features_real=gen.FE2(new_chip)
-			FM_loss=l2loss(features_fake,features_real.detach())
-			return FM_loss	
-	elif(image_size==1024 and not pretraining_mode and finetuning_mode):
-		from car_network import image_completion_network as ic, global_discriminator_1024 as gd
+			return l2loss(feature_extractor(output_fake),feature_extractor(new_chip))
+
+	elif(not pretraining_mode and finetuning_mode):
+		if(image_size==256):
+			from car_network import image_completion_network as ic, global_discriminator_256 as gd
+		elif(image_size==512):
+			from car_network import image_completion_network as ic, global_discriminator_512 as gd
+		elif(image_size==1024):
+			from car_network import image_completion_network as ic, global_discriminator_1024 as gd
+		
 		def loss_fun(output_fake,mask,new_chip,gen):
 			FM_fake_input=torch.cat((mask,output_fake),dim=1)
 			features_fake=gen.FE2(FM_fake_input)
@@ -96,7 +100,8 @@ def main():
 	batchsize=int(opt.bs)
 	image_size=int(opt.size)
 
-	inpainter,global_discriminator,loss_fun=network_factory(image_size, opt.pretraining_mode, opt.finetuning_mode)
+	fe=Feature_Extractor(opt.feature_extractor)
+	inpainter,global_discriminator,loss_fun=network_factory(image_size, opt.pretraining_mode, opt.finetuning_mode, opt.random_cropping, fe)
 	gen=inpainter()
 	disc=global_discriminator()
 	if(cuda_use):
@@ -106,9 +111,9 @@ def main():
 	print(disc)
 
 	dataset_class=dataset_factory(opt.pretraining_mode)
-	train_dataset=dataset_class(training=1,size=image_size)
+	train_dataset=dataset_class(training=1,size=image_size,DA=opt.random_cropping)
 	train_dataloader=DataLoader(train_dataset,batch_size=batchsize,shuffle=False)
-	val_dataset=dataset_class(size=image_size)
+	val_dataset=dataset_class(size=image_size/2)
 	val_dataloader=DataLoader(val_dataset,batch_size=batchsize,shuffle=False)
 
 	optim_g=optim.Adam(gen.parameters(),lr=0.0001,betas=(0.5,0.999))
@@ -157,103 +162,6 @@ def main():
 		epoch=0
 		validate(val_dataloader, model, epoch, cuda_use, '/scratch0/projects/deep_copy_paste/evaluation_mode_inpainter/')
 
-# for epoch in range(start_epoch+1,epochs):
-# 	for i,data in enumerate(train_dataloader):
-# 		start=time.time()
-# 		input,new_chip,gt=data
-# 		bs=input.shape[0]
-# 		label=torch.FloatTensor(bs)
-# 		label.resize_(bs).fill_(real_label)
-		
-# 		if(cuda_use):
-# 			input,new_chip,gt,labelv=Variable(input.cuda()),Variable(new_chip.cuda()),Variable(gt.cuda()),Variable(label.cuda())
-# 		else:
-# 			input,new_chip,gt,labelv=Variable(input),Variable(new_chip),Variable(gt),Variable(label)
-
-# 		# update discriminator
-# 		# train with real
-# 		disc.zero_grad()
-# 		disc_out=disc(gt)
-# 		errD_real=criterion(disc_out,labelv)
-# 		errD_real.backward()
-
-# 		#train with fake
-# 		mask=input[:,0,:,:].unsqueeze(dim=1)
-# 		inv_mask=training_purpose-mask
-# 		output_fake=gen(input,new_chip,mask)
-# 		if(cuda_use):
-# 			labelv=Variable(label.fill_(fake_label).cuda())
-# 		else:
-# 			labelv=Variable(label.fill_(fake_label))
-# 		fake_complete=(output_fake+input[:,1:,:,:])
-
-# 		output=disc(fake_complete.detach())
-# 		errD_fake=criterion(output,labelv)
-# 		errD_fake.backward(retain_graph=True)
-# 		errD=errD_fake+errD_real
-# 		optim_d.step()
-
-# 		# update generator
-# 		gen.zero_grad()
-# 		if(cuda_use):
-# 			labelv=Variable(label.fill_(real_label).cuda())
-# 		else:
-# 			labelv=Variable(label.fill_(real_label))
-
-# 		output=disc(fake_complete)
-# 		errG=criterion(output,labelv)
-# 		errG.backward(retain_graph=True)
-
-# 		# # L2 and FM (Feature Matching) losses
-# 		# FM_fake_input=torch.cat((mask,output_fake),dim=1)
-# 		# features_fake=gen.FE2(FM_fake_input)
-# 		# features_real=gen.FE2(new_chip)
-# 		# FM_loss=l2loss(features_fake,features_real.detach())
-
-# 		error=loss_fun(output_fake,mask,new_chip,gen)
-# 		error.backward()
-# 		optim_g.step()
-# 		print('Epoch: '+str(epoch)+' Iteration: '+str(i)+
-# 			' time: '+str(time.time()-start)+
-# 			' Error: '+ str(error.cpu().data.numpy()[0])+
-# 			' GAN_Gen_loss: '+ str(errG.cpu().data.numpy()[0])+
-# 			' GAN_Disc_loss: '+ str(errD.cpu().data.numpy()[0]))
-
-# 	if((epoch)%display_step==0):
-# 		val_start=time.time()
-# 		os.system('mkdir -p '+os.path.join('/scratch0/projects/deep_copy_paste/val_testing/L2',str(epoch)))
-# 		if(epoch==0):
-# 			os.system('mkdir -p '+os.path.join('/scratch0/projects/deep_copy_paste/val_testing/chips'))
-# 			os.system('mkdir -p '+os.path.join('/scratch0/projects/deep_copy_paste/val_testing/gt'))
-# 		for j,data in enumerate(val_dataloader):
-# 			input,new_chip,gt,pid,vid,path,filename=data
-# 			if(cuda_use):
-# 				input,new_chip,labelv=Variable(input.cuda(),volatile=True),Variable(new_chip.cuda(),volatile=True),Variable(label.cuda(),volatile=True)
-# 			else:
-# 				input,new_chip,labelv=Variable(input,volatile=True),Variable(new_chip,volatile=True),Variable(label,volatile=True)
-# 			if(epoch==0):
-# 				for k in range(input.shape[0]):
-# 					os.system('cp /scratch0/datasets/NYC3dcars/all_cars/original/'+str(pid[k])+'_'+str(vid[k])+'.jpg /scratch0/projects/deep_copy_paste/val_testing/chips')
-# 					os.system('cp '+path[k]+' /scratch0/projects/deep_copy_paste/val_testing/gt/')
-# 			mask=input[:,0,:,:].unsqueeze(dim=1)
-# 			val_output=gen(input,new_chip,mask)
-# 			val_complete=(val_output+input[:,1:,:,:]).permute(0,2,3,1).cpu().data.numpy()
-# 			for k in range(input.shape[0]):
-# 				temp=val_complete[k,:,:,:]
-# 				temp1=(temp-np.min(temp))/(np.max(temp)-np.min(temp))
-# 				scipy.misc.imsave(os.path.join('/scratch0/projects/deep_copy_paste/val_testing/L2',str(epoch),filename[k].split('/')[-1]), temp1)
-# 		print('Validation completed in time: '+str(time.time()-val_start))
-
-# 	gen_state={
-#     'epoch': epoch ,
-#     'state_dict': gen.state_dict(),
-#     'optimizer' : optim_g.state_dict()}
-# 	torch.save(gen_state, gen_saved_model)
-# 	disc_state={
-#     'epoch': epoch ,
-#     'state_dict': disc.state_dict(),
-#     'optimizer' : optim_d.state_dict()}
-# 	torch.save(disc_state, disc_saved_model)
 def run_pretraining(train_loader, val_loader, model, criterion, loss_fun, optim_g, optim_d, epochs, display_step, saved_model):
 	epochs_ic,epochs_disc,epochs_total = epochs['ic'], epochs['disc'], epochs['total']
 
@@ -262,6 +170,14 @@ def run_pretraining(train_loader, val_loader, model, criterion, loss_fun, optim_
 
 		if(epoch%display_step==0):
 			validate(val_loader, model, epoch, cuda_use)
+			# save checkpoint
+			save_checkpoint({
+			    'epoch': epoch + 1,
+			    'gen_state_dict': model['gen'].state_dict(),
+			    'disc_state_dict': model['disc'].state_dict(),
+			    'optimizer_g' : optim_g.state_dict(),
+			    'optimizer_d' : optim_d.state_dict(),
+			}, saved_model)
 
 	for epoch in range(epochs_disc):
 		train_disc(train_loader, model, criterion, optim_d, epoch, cuda_use)
@@ -324,4 +240,3 @@ def validate(val_loader, model, epoch, cuda_use, folder='/scratch0/projects/deep
 
 if __name__ == '__main__':
 	main()
-

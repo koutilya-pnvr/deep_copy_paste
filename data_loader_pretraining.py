@@ -9,9 +9,10 @@ from sklearn.neighbors import NearestNeighbors
 from math import ceil,floor
 
 class NYC3dcars(Dataset):
-	def __init__(self,root_dir='/scratch0/datasets/NYC3dcars/',training=0,size=512):
+	def __init__(self,root_dir='/scratch0/datasets/NYC3dcars/',training=0,size=512,DA=False):
 		super(NYC3dcars,self).__init__()
 		self.size=size
+		self.DA=DA
 		self.root_dir=root_dir
 		self.training=training
 		self.complete_images_path=os.path.join(self.root_dir,'times-square-images/')
@@ -68,12 +69,19 @@ class NYC3dcars(Dataset):
 
 		chip=np.zeros((self.size,self.size,3),dtype=np.float32)
 		chip[bb_y1:(bb_y2+1),bb_x1:(1+bb_x2),:]=input_resized[bb_y1:(bb_y2+1),bb_x1:(1+bb_x2),:]
-		# imsave('chip_'+str(idx)+'.jpg',chip)
 		
+		if(self.DA and self.training):
+			p,q=random.randint(max(0,bb_x2-255),min(bb_x1,255)),random.randint(max(0,bb_y2-255),min(bb_y1,255))
+			# print((p,q),(bb_x1,bb_y1),(bb_x2,bb_y2))
+			chip_da=np.zeros((256,256,3),dtype=np.float32)
+			chip_da=chip[q:q+256,p:p+256,:]
+			chip=chip_da.copy()
+
 		horizontal_flip_parameter=random.randint(0,1)
 		if(horizontal_flip_parameter and self.training):
 			chip=np.flip(chip,axis=1).copy()
 
+		# imsave('chip_'+str(idx)+'.jpg',chip)
 		chip=torch.from_numpy(chip)
 		chip=chip.type(torch.FloatTensor)
 		chip_only=chip.permute(2,0,1)
@@ -85,25 +93,38 @@ class NYC3dcars(Dataset):
 		input_new=input_resized*inv_mask
 		# input_new/=255.0
 
+		if(self.DA and self.training):
+			input_da=np.zeros((256,256,3),dtype=np.float32)
+			input_da=input_new[q:q+256,p:p+256,:]
+			input_new=input_da.copy()
+			mask_da=np.zeros((256,256,1),dtype=np.float32)
+			mask_da=mask[q:q+256,p:p+256,:]
+			mask=mask_da.copy()
+
 		if(horizontal_flip_parameter and self.training):
 			input_new=np.flip(input_new,axis=1).copy()
+		
 		# imsave('input_'+str(idx)+'.jpg',input_new)
-
 		input=torch.from_numpy(input_new)
 		input=input.type(torch.FloatTensor)
 		input=torch.cat((torch.from_numpy(mask).type(torch.FloatTensor),input),dim=2)
 		input=input.permute(2,0,1)
 
 		gt=input_resized
-		# imsave('gt_'+str(idx)+'.png',gt)
+		if(self.DA and self.training):
+			gt_da=np.zeros((256,256,3),dtype=np.float32)
+			gt_da=gt[q:q+256,p:p+256,:]
+			gt=gt_da.copy()
+
 		if(horizontal_flip_parameter and self.training):
 			gt=np.flip(gt,axis=1).copy()
 		# gt/=255.0
+
+		# imsave('gt_'+str(idx)+'.png',gt)
 		gt=torch.from_numpy(gt)
 		gt=gt.type(torch.FloatTensor)
 		gt=gt.permute(2,0,1)
 		
-		# print(torch.max(input),torch.max(chip_only),torch.max(gt))
 		if(self.training):
 			return input,chip_only,gt
 		else:
@@ -111,15 +132,16 @@ class NYC3dcars(Dataset):
 
 # train_dataset=NYC3dcars(training=1)
 # print(train_dataset.__len__())
-# val_dataset=NYC3dcars()
-# print(val_dataset.__len__())
-# train_dataloader=DataLoader(train_dataset,batch_size=5,shuffle=False)
-# val_dataloader=DataLoader(val_dataset,batch_size=10,shuffle=False)
-# for i,data in enumerate(val_dataloader):
-	# if(i==1):
-		# break
-	# input,new_chip,gt,pid,vid,path,filename=data
+# # val_dataset=NYC3dcars()
+# # print(val_dataset.__len__())
+# train_dataloader=DataLoader(train_dataset,batch_size=10,shuffle=False)
+# # val_dataloader=DataLoader(val_dataset,batch_size=10,shuffle=False)
+# for i,data in enumerate(train_dataloader):
+# 	if(i==1):
+# 		break
+	# input,new_chip,gt=data #,pid,vid,path,filename
 	# print(input.shape,new_chip.shape,gt.shape)
+# 	print(h)
 	# print(len(set(list(path))))
 # # 	# print(filename[0])
 # # 	# k=input[0,1:,:,:].permute(1,2,0).cpu().numpy()
