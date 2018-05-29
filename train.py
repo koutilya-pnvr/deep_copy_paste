@@ -23,7 +23,7 @@ def train_ic(train_loader, model, loss_fun, optim_g, epoch, cuda_use):
 		# update generator
 		gen.zero_grad()
 
-		error=loss_fun(output_fake,mask,new_chip,gen)
+		error=10*loss_fun(output_fake,mask,new_chip,gen)
 		error.backward()
 		optim_g.step()
 	print('Epoch: '+str(epoch)+' Iteration: '+str(i)+
@@ -129,7 +129,7 @@ def train_total(train_loader, model, criterion, loss_fun, optim_g, optim_d, epoc
 		errG=criterion(output,labelv)
 		errG.backward(retain_graph=True)
 
-		error=loss_fun(output_fake,mask,new_chip,gen)
+		error=10*loss_fun(output_fake,mask,new_chip,gen)
 		error.backward()
 		optim_g.step()
 	print('Epoch: '+str(epoch)+' Iteration: '+str(i)+
