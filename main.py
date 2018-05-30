@@ -88,7 +88,7 @@ def save_checkpoint(state, filename):
     torch.save(state, filename)
 
 def main():
-	global opt, cuda_use
+	global opt, cuda_use, project_path, data_path
 	opt = parser.parse_args()
 	cuda_use=1
 	seed=250
@@ -185,7 +185,7 @@ def run_pretraining(train_loader, val_loader, model, criterion, loss_fun, optim_
 		train_ic(train_loader, model, loss_fun, optim_g, epoch, cuda_use)
 
 		if(epoch%display_step==0):
-			validate(val_loader, model, epoch, cuda_use, os.path.join(project_path,'evaluation_mode_inpainter/'))
+			validate(val_loader, model, epoch, cuda_use, os.path.join(project_path,'validation_inpainter/'))
 			# save checkpoint
 			save_checkpoint({
 			    'epoch': epoch + 1,
@@ -202,7 +202,7 @@ def run_pretraining(train_loader, val_loader, model, criterion, loss_fun, optim_
 		train_total(train_loader, model, criterion, loss_fun, optim_g, optim_d, epoch, cuda_use)
 
 		if(epoch%display_step==0):
-			validate(val_loader, model, epochs_ic+epochs_disc+epoch, cuda_use, os.path.join(project_path,'evaluation_mode_inpainter/'))
+			validate(val_loader, model, epochs_ic+epochs_disc+epoch, cuda_use, os.path.join(project_path,'validation_inpainter/'))
 			# save checkpoint
 			save_checkpoint({
 			    'epoch': epoch + 1,
@@ -236,6 +236,12 @@ def validate(val_loader, model, epoch, cuda_use, folder='/scratch0/projects/deep
 	
 	os.system('mkdir -p '+os.path.join(folder,'output',str(epoch)))
 	gen=model['gen']
+	if(epoch==0):
+		for i,data in enumerate(val_loader):
+			input,new_chip,gt,pid,vid,path,filename=data
+			for k in range(input.shape[0]):
+				os.system('cp '+path[k]+' '+os.path.join(folder,'gt'))
+
 	for i,data in enumerate(val_loader):
 		input,new_chip,gt,pid,vid,path,filename=data
 		if(cuda_use):
@@ -243,9 +249,6 @@ def validate(val_loader, model, epoch, cuda_use, folder='/scratch0/projects/deep
 		else:
 			input,new_chip=Variable(input,volatile=True),Variable(new_chip,volatile=True)
 		
-		for k in range(input.shape[0]):
-			os.system('cp '+path[k]+' '+os.path.join(folder,'gt'))
-
 		mask=input[:,0,:,:].unsqueeze(dim=1)
 		val_output=gen(input,new_chip,mask)
 		val_complete=(val_output+input[:,1:,:,:]).permute(0,2,3,1).cpu().data.numpy()
