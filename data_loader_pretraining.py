@@ -143,16 +143,16 @@ class NYC3dcars(Dataset):
 			return input,chip_only,gt,pid,vid,os.path.join(self.complete_images_path,filename),filename
 
 # cnt=0
-train_dataset=NYC3dcars(training=1,DA=True)
+# train_dataset=NYC3dcars(training=1,DA=True)
 # print(train_dataset.__len__())
 # # val_dataset=NYC3dcars()
 # # print(val_dataset.__len__())
-train_dataloader=DataLoader(train_dataset,batch_size=100,shuffle=False)
+# train_dataloader=DataLoader(train_dataset,batch_size=100,shuffle=False)
 # # val_dataloader=DataLoader(val_dataset,batch_size=10,shuffle=False)
-for i,data in enumerate(train_dataloader):
+# for i,data in enumerate(train_dataloader):
 # 	if(i==1):
 # 		break
-	input,new_chip,gt,count=data #,pid,vid,path,filename
+	# input,new_chip,gt,count=data #,pid,vid,path,filename
 	# cnt+=torch.sum(count)
 	# print('Iteration: '+str(i)+' cnt: '+ str(cnt))
 	# print(input.shape,new_chip.shape,gt.shape)
