@@ -69,13 +69,18 @@ class NYC3dcars(Dataset):
 
 		chip=np.zeros((self.size,self.size,3),dtype=np.float32)
 		chip[bb_y1:(bb_y2+1),bb_x1:(1+bb_x2),:]=input_resized[bb_y1:(bb_y2+1),bb_x1:(1+bb_x2),:]
-		
+
+		condition=not(bb_w>256 or bb_h>256) # check if the car mask itself is more than 256
+
 		if(self.DA and self.training):
-			p,q=random.randint(max(0,bb_x2-256),min(bb_x1,255)),random.randint(max(0,bb_y2-256),min(bb_y1,255))
-			# print((p,q),(bb_x1,bb_y1),(bb_x2,bb_y2))
-			chip_da=np.zeros((256,256,3),dtype=np.float32)
-			chip_da=chip[q:q+256,p:p+256,:]
-			chip=chip_da.copy()
+			if(condition):
+				p,q=random.randint(max(0,bb_x2-256),min(bb_x1,255)),random.randint(max(0,bb_y2-256),min(bb_y1,255))
+				# print((p,q),(bb_x1,bb_y1),(bb_x2,bb_y2))
+				chip_da=np.zeros((256,256,3),dtype=np.float32)
+				chip_da=chip[q:q+256,p:p+256,:]
+				chip=chip_da.copy()
+			else:
+				chip=resize(chip,(256,256))
 
 		horizontal_flip_parameter=random.randint(0,1)
 		if(horizontal_flip_parameter and self.training):
@@ -94,12 +99,16 @@ class NYC3dcars(Dataset):
 		# input_new/=255.0
 
 		if(self.DA and self.training):
-			input_da=np.zeros((256,256,3),dtype=np.float32)
-			input_da=input_new[q:q+256,p:p+256,:]
-			input_new=input_da.copy()
-			mask_da=np.zeros((256,256,1),dtype=np.float32)
-			mask_da=mask[q:q+256,p:p+256,:]
-			mask=mask_da.copy()
+			if(condition):
+				input_da=np.zeros((256,256,3),dtype=np.float32)
+				input_da=input_new[q:q+256,p:p+256,:]
+				input_new=input_da.copy()
+				mask_da=np.zeros((256,256,1),dtype=np.float32)
+				mask_da=mask[q:q+256,p:p+256,:]
+				mask=mask_da.copy()
+			else:
+				input_new=resize(input_new,(256,256))
+				mask=resize(mask,(256,256))
 
 		if(horizontal_flip_parameter and self.training):
 			input_new=np.flip(input_new,axis=1).copy()
@@ -112,9 +121,12 @@ class NYC3dcars(Dataset):
 
 		gt=input_resized
 		if(self.DA and self.training):
-			gt_da=np.zeros((256,256,3),dtype=np.float32)
-			gt_da=gt[q:q+256,p:p+256,:]
-			gt=gt_da.copy()
+			if(condition):
+				gt_da=np.zeros((256,256,3),dtype=np.float32)
+				gt_da=gt[q:q+256,p:p+256,:]
+				gt=gt_da.copy()
+			else:
+				gt=resize(gt,(256,256))
 
 		if(horizontal_flip_parameter and self.training):
 			gt=np.flip(gt,axis=1).copy()
@@ -130,16 +142,19 @@ class NYC3dcars(Dataset):
 		else:
 			return input,chip_only,gt,pid,vid,os.path.join(self.complete_images_path,filename),filename
 
-# train_dataset=NYC3dcars(training=1)
+# cnt=0
+train_dataset=NYC3dcars(training=1,DA=True)
 # print(train_dataset.__len__())
 # # val_dataset=NYC3dcars()
 # # print(val_dataset.__len__())
-# train_dataloader=DataLoader(train_dataset,batch_size=10,shuffle=False)
+train_dataloader=DataLoader(train_dataset,batch_size=100,shuffle=False)
 # # val_dataloader=DataLoader(val_dataset,batch_size=10,shuffle=False)
-# for i,data in enumerate(train_dataloader):
+for i,data in enumerate(train_dataloader):
 # 	if(i==1):
 # 		break
-	# input,new_chip,gt=data #,pid,vid,path,filename
+	input,new_chip,gt,count=data #,pid,vid,path,filename
+	# cnt+=torch.sum(count)
+	# print('Iteration: '+str(i)+' cnt: '+ str(cnt))
 	# print(input.shape,new_chip.shape,gt.shape)
 # 	print(h)
 	# print(len(set(list(path))))
@@ -148,3 +163,4 @@ class NYC3dcars(Dataset):
 # # 	# print(k.shape)
 # # 	# imsave('test_input.png',k)
 # print(i)
+# train_dataset[61]
