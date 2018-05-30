@@ -148,6 +148,7 @@ def main():
 		# gen_saved_model='/scratch0/projects/deep_copy_paste/gen_model'
 		# disc_saved_model='/scratch0/projects/deep_copy_paste/disc_model'
 
+	start_epoch=-1
 	if(os.path.isfile(saved_model) and opt.use_pretrained):
 		model_state = torch.load(saved_model)
 		gen.load_state_dict(model_state['gen_state_dict'])
@@ -170,7 +171,7 @@ def main():
 		if(opt.pretraining_mode):
 			epochs={'ic':3000,'disc':1000,'total':4000}
 			# epochs={'ic':1,'disc':1,'total':1}
-			run_pretraining(train_dataloader, val_dataloader, model, criterion, loss_fun, optim_g, optim_d, epochs, display_step, saved_model)
+			run_pretraining(train_dataloader, val_dataloader, model, criterion, loss_fun, optim_g, optim_d, epochs, display_step, saved_model, start_epoch+1)
 		elif(opt.finetuning_mode):
 			epochs=3000
 			run_training(train_dataloader, val_dataloader, model, criterion, loss_fun, optim_g, optim_d, epochs, display_step, saved_model)
@@ -178,10 +179,10 @@ def main():
 		epoch=0
 		validate(val_dataloader, model, epoch, cuda_use, os.path.join(project_path,'evaluation_mode_inpainter/'))
 
-def run_pretraining(train_loader, val_loader, model, criterion, loss_fun, optim_g, optim_d, epochs, display_step, saved_model):
+def run_pretraining(train_loader, val_loader, model, criterion, loss_fun, optim_g, optim_d, epochs, display_step, saved_model, start_epoch):
 	epochs_ic,epochs_disc,epochs_total = epochs['ic'], epochs['disc'], epochs['total']
 
-	for epoch in range(epochs_ic):
+	for epoch in range(start_epoch, epochs_ic):
 		train_ic(train_loader, model, loss_fun, optim_g, epoch, cuda_use)
 
 		if(epoch%display_step==0):
@@ -236,7 +237,7 @@ def validate(val_loader, model, epoch, cuda_use, folder='/scratch0/projects/deep
 	
 	os.system('mkdir -p '+os.path.join(folder,'output',str(epoch)))
 	gen=model['gen']
-	if(epoch==0):
+	if(len(os.listdir(os.path.join(folder,'gt')))==0):
 		for i,data in enumerate(val_loader):
 			input,new_chip,gt,pid,vid,path,filename=data
 			for k in range(input.shape[0]):
