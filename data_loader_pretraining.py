@@ -71,7 +71,7 @@ class NYC3dcars(Dataset):
 		chip[bb_y1:(bb_y2+1),bb_x1:(1+bb_x2),:]=input_resized[bb_y1:(bb_y2+1),bb_x1:(1+bb_x2),:]
 		
 		if(self.DA and self.training):
-			p,q=random.randint(max(0,bb_x2-255),min(bb_x1,255)),random.randint(max(0,bb_y2-255),min(bb_y1,255))
+			p,q=random.randint(max(0,bb_x2-256),min(bb_x1,255)),random.randint(max(0,bb_y2-256),min(bb_y1,255))
 			# print((p,q),(bb_x1,bb_y1),(bb_x2,bb_y2))
 			chip_da=np.zeros((256,256,3),dtype=np.float32)
 			chip_da=chip[q:q+256,p:p+256,:]
